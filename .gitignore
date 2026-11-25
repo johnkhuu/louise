@@ -1,0 +1,4 @@
+# Louise health data stays out of git
+*.xlsx
+*.csv
+*.pdf
