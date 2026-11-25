@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Lexend:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#FBF7EF;--card:#FFFFFF;--ink:#1F2A33;--ink2:#33414D;--muted:#4B5763;--line:#8C979F;--sky:#D6E9F6;
+--sun:#F4C542;--sand:#F3ECDD;--blue:#4F7FC9;--blueBg:#E4EFF9;--green:#2F8A5C;--greenInk:#2F6E4C;--iron:#C9532F;
+--ironInk:#A5432A;--plum:#8A2F7C;--amberInk:#8A5A00;--alert:#FBE3DA}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 Lexend,system-ui,sans-serif}
+body{padding-bottom:96px}
+h1,h2,h3{font-family:Fredoka,system-ui,sans-serif;font-weight:600;margin:0;line-height:1.15}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;border-radius:6px;min-height:48px}
+button:disabled{cursor:not-allowed}
+a{color:#2B5BA8}
+.wrap{max-width:760px;margin:0 auto;padding:0 20px}
+.card{background:var(--card);border-radius:6px;padding:18px}
+.stack{display:flex;flex-direction:column;gap:12px}
+.row{display:flex;align-items:center;gap:12px}
+.between{display:flex;justify-content:space-between;gap:12px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.muted{color:var(--muted)}.small{font-size:14px}.tiny{font-size:13px}
+.hero{position:relative;overflow:hidden;background:var(--sky);padding:28px 20px 22px}
+.hero .clouds{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.hero>*:not(.clouds){position:relative}
+.check{display:flex;flex-direction:column;align-items:center;gap:4px;background:#fff;border-radius:6px;padding:12px 6px;text-align:center;font-size:13px;font-weight:600}
+.btn-sun{background:var(--sun);font-weight:600;font-size:17px;min-height:56px;width:100%}
+.btn-blue{background:var(--blueBg);font-weight:600;min-height:56px;width:100%}
+.opt{background:#fff;font-size:14px;font-weight:500}
+.opt[aria-pressed="true"]{background:var(--ink);color:#fff}
+.tile{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 4px;background:#fff;font-size:14px}
+.tile[aria-pressed="true"]{box-shadow:inset 0 0 0 3px var(--ink)}
+.field{width:100%;min-height:48px;padding:0 12px;border:2px solid var(--line);border-radius:6px;background:#fff}
+.tag{font-size:12px;font-weight:500}
+.nav{position:fixed;left:0;right:0;bottom:0;background:#fff;display:grid;grid-template-columns:repeat(5,1fr);padding:6px 6px calc(10px + env(safe-area-inset-bottom))}
+.nav button{background:none;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;color:var(--muted);min-height:52px}
+.nav button[aria-current="page"]{color:var(--ink);font-weight:600}
+.toast{position:fixed;left:16px;right:16px;bottom:92px;max-width:728px;margin:0 auto;background:var(--ink);color:#fff;border-radius:6px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.toast button{background:#fff;color:var(--ink);min-height:40px;padding:0 12px;font-weight:600;font-size:14px}
+.bar{position:relative;height:14px;border-radius:7px;background:#E8EEF3;overflow:hidden}
+.bar>span{display:block;height:14px;background:var(--blue);border-radius:7px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:9px 10px;text-align:left;white-space:nowrap}
+thead tr{background:var(--sand);color:var(--ink2)}
+.days{display:grid;gap:3px 4px;align-items:center;font-size:11px;color:var(--muted)}
+.loading{padding:60px 20px;text-align:center}
+.alert911{background:var(--alert);border-radius:6px;padding:14px;font-weight:500}
+</style>
+</head>
+<body>
+<div id="app"><p class="loading">Loading Louise's log…</p></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<nav class="nav" aria-label="Main" id="nav"></nav>
+
+<script>
+const S = { view: 'today', D: null, picked: {}, form: 'Purée', servings: 1, like: 'Loved', reaction: 'None', notes: '', q: '', formulaOz: 4, busy: false };
+
+const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const call = (fn, arg) => new Promise((ok, fail) => {
+  const r = google.script.run.withSuccessHandler(ok).withFailureHandler(fail);
+  arg === undefined ? r[fn]() : r[fn](arg);
+});
+
+const ICON = {
+  check: '<svg aria-hidden="true" width="32" height="32" viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="#2F8A5C"/><polyline points="14,25 21,32 34,17" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  todo: '<svg aria-hidden="true" width="32" height="32" viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="none" stroke="#B7BEC4" stroke-width="4"/></svg>',
+  shield: c => `<svg aria-hidden="true" width="14" height="14" viewBox="0 0 18 18"><path d="M9 1.5l6.5 2.5v4.5c0 4-2.8 6.8-6.5 8-3.7-1.2-6.5-4-6.5-8V4z" fill="${c}"/></svg>`,
+  sq: c => `<svg aria-hidden="true" width="12" height="12"><rect width="12" height="12" rx="3" fill="${c}"/></svg>`,
+  dot: c => `<svg aria-hidden="true" width="12" height="12"><circle cx="6" cy="6" r="6" fill="${c}"/></svg>`,
+};
+const ring = (val, max) => {
+  const p = Math.max(0, Math.min(1, max ? val / max : 0)), a = p * 2 * Math.PI, x = 24 + 21 * Math.sin(a), y = 24 - 21 * Math.cos(a);
+  const arc = p >= 1 ? '<circle cx="24" cy="24" r="21" fill="none" stroke="#4F7FC9" stroke-width="5"/>'
+    : p > 0 ? `<path d="M24 3A21 21 0 ${p > .5 ? 1 : 0} 1 ${x.toFixed(1)} ${y.toFixed(1)}" fill="none" stroke="#4F7FC9" stroke-width="5" stroke-linecap="round"/>` : '';
+  return `<svg aria-hidden="true" width="32" height="32" viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="none" stroke="#C9D2D9" stroke-width="5"/>${arc}</svg>`;
+};
+const CLOUDS = '<svg class="clouds" aria-hidden="true" viewBox="0 0 390 220" preserveAspectRatio="xMidYMid slice"><g fill="#fff"><ellipse cx="330" cy="36" rx="70" ry="22"/><circle cx="310" cy="28" r="24"/><circle cx="350" cy="22" r="30"/><ellipse cx="40" cy="214" rx="90" ry="34"/><circle cx="60" cy="190" r="36"/></g></svg>';
+
+const NAV = [
+  ['today', 'Today', '<circle cx="12" cy="12" r="5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>'],
+  ['food', 'Food', '<path d="M12 5v14M5 12h14"/>'],
+  ['drinks', 'Drinks', '<path d="M6 3h12l-2 18H8z"/>'],
+  ['progress', 'Progress', '<path d="M5 20V12M12 20V5M19 20v-9"/>'],
+  ['allergens', 'Allergens', '<path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/>'],
+];
+
+function go(view) { S.view = view; render(); window.scrollTo(0, 0); }
+
+function toast(msg, ids) {
+  const t = document.getElementById('toast');
+  t.innerHTML = `<div class="toast"><span>${esc(msg)}</span>${ids ? '<button type="button" id="undo">Undo</button>' : ''}</div>`;
+  if (ids) document.getElementById('undo').onclick = () => run(() => call('removeEntries', ids).then(d => { S.D = d; toast('Removed'); }));
+  clearTimeout(toast.t); toast.t = setTimeout(() => { t.innerHTML = ''; }, ids ? 8000 : 3000);
+}
+
+function run(job) {
+  if (S.busy) return; S.busy = true; render();
+  job().catch(e => toast(e && e.message ? e.message : 'Something went wrong')).finally(() => { S.busy = false; render(); });
+}
+
+/* ------------------------------------------------------------ views */
+
+function vToday(D) {
+  const t = D.targets, dk = D.drinkToday;
+  const iron = D.todayFoods.some(f => f.iron);
+  const due = D.allergens.find(a => a.status === 'Due');
+  const started = D.allergens.filter(a => a.status !== 'Not yet');
+  const algBox = due ? `${due.last7 >= due.target ? ICON.check : ICON.todo}<span>${esc(due.name)} ${due.last7} of ${due.target}</span>`
+    : `${ICON.check}<span>${started.length ? 'Allergens on track' : 'No allergen due'}</span>`;
+  const foods = D.todayFoods.length ? D.todayFoods.map(f => `
+    <div class="card row">
+      <div style="flex:1;min-width:0"><p style="margin:0;font-weight:500">${esc(f.time)} ${esc(f.food)}</p>
+      <p class="small" style="margin:0;display:flex;flex-wrap:wrap;gap:4px 12px">
+        ${f.allergen ? `<span style="color:var(--plum);font-weight:500">${ICON.shield('#8A2F7C')} ${esc(f.allergen)}</span>` : ''}
+        ${f.iron ? `<span style="color:var(--ironInk);font-weight:500">${ICON.sq('#C9532F')} Iron</span>` : ''}
+        ${f.tryNo == 1 ? `<span style="color:var(--greenInk);font-weight:500">${ICON.dot('#2F8A5C')} New food</span>` : `<span class="muted">Try ${esc(f.tryNo)}</span>`}
+        ${f.reaction && f.reaction !== 'None' ? `<span style="color:var(--ironInk);font-weight:600">Reaction: ${esc(f.reaction)}</span>` : ''}
+      </p></div><span class="small muted">${esc(f.liked)}</span></div>`).join('')
+    : '<p class="card muted" style="margin:0">Nothing logged yet today</p>';
+  return `
+  <section class="hero">${CLOUDS}
+    <h1 style="font-size:34px">Louise's day</h1>
+    <p style="margin:4px 0 14px;color:var(--ink2)">${D.age} months old</p>
+    <div class="grid3">
+      <div class="check">${iron ? ICON.check : ICON.todo}<span>Iron food</span></div>
+      <div class="check">${algBox}</div>
+      <div class="check">${ring(dk.water, t.waterMin)}<span>Water ${dk.water} of ${esc(t.waterMin)}–${esc(t.waterMax)} oz</span></div>
+    </div>
+  </section>
+  <div class="wrap stack" style="padding-top:18px">
+    <div class="grid2"><button class="btn-blue" type="button" data-go="drinks">Log a drink</button><button class="btn-sun" type="button" data-go="food">Log food</button></div>
+    <h2 style="font-size:22px;margin-top:6px">What she had today</h2>
+    ${foods}
+    <div class="card stack">
+      <h2 style="font-size:20px">Drinks today</h2>
+      <div class="between"><span>Breastfeeds</span><b>${dk.feeds}</b></div>
+      <div class="between"><span>Water</span><b>${dk.water} oz</b></div>
+      ${dk.formula ? `<div class="between"><span>Formula</span><b>${dk.formula} oz</b></div>` : ''}
+      ${D.age >= 12 ? `<div class="between"><span>Cow's milk</span><b>${dk.cow} of up to ${esc(t.cowMax)} oz</b></div>` : ''}
+    </div>
+    ${t.focus ? `<div class="card" style="background:#FBF2C9"><h3 style="font-size:18px;margin-bottom:4px">Focus for this stage</h3><p style="margin:0">${esc(t.focus)}</p></div>` : ''}
+  </div>`;
+}
+
+function vFood(D) {
+  const q = S.q.trim().toLowerCase();
+  const list = q ? D.foods.filter(f => f.name.toLowerCase().includes(q)) : D.foods.slice(0, 9);
+  const tiles = list.map(f => {
+    const tag = f.allergen ? ['Allergen', 'var(--plum)'] : f.iron ? ['Iron', 'var(--ironInk)'] : !f.tries ? ['New', 'var(--greenInk)'] : ['Try ' + (f.tries + 1), 'var(--muted)'];
+    return `<button type="button" class="tile" aria-pressed="${!!S.picked[f.name]}" data-food="${esc(f.name)}">${esc(f.name)}<span class="tag" style="color:${tag[1]}">${tag[0]}</span></button>`;
+  }).join('') || '<p class="muted">No match in the Food Guide. Add new foods there first.</p>';
+  const picked = Object.keys(S.picked).filter(n => S.picked[n]);
+  const info = picked.map(n => { const f = D.foods.find(x => x.name === n); return f ? `<p style="margin:0">${esc(n)}: try ${f.tries + 1}${f.iron ? ', iron' : ''}${f.allergen ? ', allergen ' + esc(f.allergen) : ''}${!f.tries ? ', new food' : ''}</p>` : ''; }).join('');
+  const opts = (arr, cur, key) => arr.map(v => `<button type="button" class="opt" aria-pressed="${v === cur}" data-set="${key}" data-val="${esc(v)}">${esc(v)}</button>`).join('');
+  return `<div class="wrap stack" style="padding-top:24px;gap:18px">
+    <h1 style="font-size:28px">What did she try?</h1>
+    <div><label for="q" class="small muted">Search ${D.guideCount} foods</label>
+      <input id="q" class="field" type="search" value="${esc(S.q)}" autocomplete="off" style="margin-top:4px"></div>
+    <div class="grid3">${tiles}</div>
+    ${info ? `<div class="card small"><p style="margin:0 0 4px;font-weight:600">Filled in from the Food Guide</p>${info}</div>` : ''}
+    <div><h2 style="font-size:19px;margin-bottom:8px">Form</h2><div class="grid2">${opts(D.lists.forms, S.form, 'form')}</div></div>
+    <div class="between" style="align-items:center"><div><h2 style="font-size:19px">Servings</h2><p class="tiny muted" style="margin:0">${D.targets.cueLed ? 'One is about 1–2 tbsp at this age' : 'See Age Targets for one serving'}</p></div>
+      <div class="row"><button type="button" class="opt" style="width:48px;border-radius:50%;font-size:22px" data-step="-0.5" aria-label="Fewer servings">−</button>
+      <b style="min-width:36px;text-align:center;font-size:22px" aria-live="polite">${S.servings}</b>
+      <button type="button" class="opt" style="width:48px;border-radius:50%;font-size:22px" data-step="0.5" aria-label="More servings">+</button></div></div>
+    <div><h2 style="font-size:19px;margin-bottom:8px">Liked it?</h2><div class="grid3">${opts(D.lists.likes, S.like, 'like')}</div></div>
+    <div><label for="rx" style="font-family:Fredoka;font-weight:600;font-size:19px">Reaction</label>
+      <select id="rx" class="field" style="margin-top:6px">${D.lists.reactions.map(r => `<option${r === S.reaction ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select></div>
+    ${S.reaction.indexOf('911') >= 0 ? '<div class="alert911">Call 911 now. Use epinephrine first if prescribed, lay her flat on her side. Log this later.</div>' : ''}
+    <div><label for="notes" class="small muted">Notes (optional)</label><input id="notes" class="field" value="${esc(S.notes)}" style="margin-top:4px"></div>
+    <button type="button" class="btn-sun" id="saveFood" ${picked.length && !S.busy ? '' : 'disabled'}>${S.busy ? 'Saving…' : picked.length ? `Save ${picked.length} to the Food Log` : 'Pick a food'}</button>
+  </div>`;
+}
+
+function vDrinks(D) {
+  const t = D.targets, dk = D.drinkToday, age = D.age;
+  const big = (id, title, sub, enabled = true) => `<button type="button" class="card" data-drink="${id}" ${enabled && !S.busy ? '' : 'disabled'} style="text-align:left;min-height:110px;display:flex;flex-direction:column;justify-content:flex-start;gap:4px;${enabled ? '' : 'background:#EFEAE0;color:var(--muted)'}">
+    <span style="display:block;font-family:Fredoka;font-weight:600;font-size:19px">${title}</span><span class="tiny ${enabled ? 'muted' : ''}">${sub}</span></button>`;
+  const pct = Math.min(100, Math.round(dk.water / (t.waterMax || 8) * 100));
+  return `<div class="wrap stack" style="padding-top:24px;gap:16px">
+    <div><h1 style="font-size:28px">Drinks</h1><p class="small muted" style="margin:0">One tap logs it now</p></div>
+    <div class="grid2">
+      ${big('Breast milk', 'Breastfeed', 'Counts a feed, no amount')}
+      ${big('Water', 'Water, 1 oz', 'Sips from a cup')}
+      ${big('Formula', 'Formula, ' + S.formulaOz + ' oz', 'Change the amount below')}
+      ${age < 24 ? big('Whole milk', "Whole milk, 4 oz", age < 12 ? 'Unlocks at 12 months' : 'Up to ' + t.cowMax + ' oz a day', age >= 12)
+                 : big('Low-fat or skim milk', 'Low-fat milk, 4 oz', 'Up to ' + t.cowMax + ' oz a day')}
+      ${big('Juice', 'Juice, 2 oz', age < 12 ? 'Not before 12 months' : 'Up to ' + t.juiceMax + ' oz a day', age >= 12)}
+    </div>
+    <div class="row"><label for="foz" class="small">Formula amount</label>
+      <select id="foz" class="field" style="width:120px">${[2, 3, 4, 5, 6, 8].map(o => `<option value="${o}"${o === S.formulaOz ? ' selected' : ''}>${o} oz</option>`).join('')}</select></div>
+    <section class="card stack">
+      <h2 style="font-size:20px">Today so far</h2>
+      <div class="between"><span>Water</span><b>${dk.water} oz <span class="muted" style="font-weight:400">of ${esc(t.waterMin)}–${esc(t.waterMax)}</span></b></div>
+      <div class="bar" role="img" aria-label="Water ${dk.water} of ${esc(t.waterMin)} to ${esc(t.waterMax)} ounces"><span style="width:${pct}%"></span></div>
+      <div class="between"><span>Breastfeeds</span><b>${dk.feeds}</b></div>
+      <div class="between"><span>Formula</span><b>${dk.formula} oz</b></div>
+      ${age >= 12 ? `<div class="between"><span>Milk / juice</span><b>${dk.cow} / ${dk.juice} oz</b></div>` : ''}
+    </section>
+    <p class="tiny muted" style="margin:0">Each tap adds one row to the Drinks Log. Targets come from the Age Targets tab and change as she grows.</p>
+  </div>`;
+}
+
+function vProgress(D) {
+  const m = D.month || {};
+  const tile = (big, label) => `<div class="card"><p style="margin:0;font-family:Fredoka;font-weight:600;font-size:30px;line-height:1">${esc(big)}</p><p class="small muted" style="margin:6px 0 0">${label}</p></div>`;
+  const cols = D.days.length;
+  const mark = (on, future, kind) => future ? `<span style="opacity:.25">${kind === 'iron' ? ICON.sq('#B7BEC4') : kind === 'new' ? ICON.dot('#B7BEC4') : ICON.shield('#B7BEC4')}</span>`
+    : on ? (kind === 'iron' ? ICON.sq('#C9532F') : kind === 'new' ? ICON.dot('#2F8A5C') : ICON.shield('#8A2F7C')) : '<span style="color:#B7BEC4">·</span>';
+  const maxW = Math.max(8, ...D.days.map(d => d.water || 0));
+  const row = (label, f) => `<span>${label}</span>` + D.days.map(f).join('');
+  const strip = cols ? `<div style="overflow-x:auto"><div class="days" style="min-width:${cols * 22 + 70}px;grid-template-columns:64px repeat(${cols},1fr)">
+    ${row('Iron', d => `<span style="text-align:center">${mark(d.iron, d.future, 'iron')}</span>`)}
+    ${row('New food', d => `<span style="text-align:center">${mark(d.newFoods > 0, d.future, 'new')}</span>`)}
+    ${row('Allergen', d => `<span style="text-align:center">${mark(d.allergen, d.future, 'alg')}</span>`)}
+    ${row('Water', d => `<span title="${esc(d.date)}: ${d.water || 0} oz" style="height:60px;display:flex;align-items:flex-end;justify-content:center"><span style="width:70%;height:${Math.round((d.water || 0) / maxW * 60)}px;background:#4F7FC9;border-radius:3px 3px 0 0"></span></span>`)}
+    ${row('', d => `<span style="text-align:center">${parseInt(d.date.slice(8), 10) || ''}</span>`)}
+  </div></div>` : '<p class="muted">No days yet for this month.</p>';
+  const groups = D.targets.cueLed
+    ? `<p style="margin:0">Until 12 months there are no amounts to hit, so this tracks variety. From her first birthday it scores fruit, veg, grain, protein and dairy servings against her age band.</p>`
+    : `<div class="between"><span>On target</span><b>${esc(m['Food groups on target'])}</b></div>` +
+      ['Fruit', 'Veg', 'Grain', 'Protein', 'Dairy'].map(g => `<div class="between"><span>${g} a day</span><b>${esc(m[g + ' a day'])}</b></div>`).join('');
+  const months = D.months.map(r => parseInt(r['Age'], 10) > D.age
+    ? `<tr><th scope="row">${esc(r['Age'])}</th><td colspan="5" class="muted">Coming up</td><td style="white-space:normal;min-width:220px">${esc(r["This month's goal"])}</td></tr>`
+    : `<tr${parseInt(r['Age'], 10) === D.age ? ' style="background:#E3F1E1"' : ''}><th scope="row">${esc(r['Age'])}</th><td>${esc(r['New foods'])}</td><td>${esc(r['Iron days'])}</td><td>${esc(r['Allergens started to date'])}</td><td>${esc(r['Water oz a day'])}</td><td>${esc(r['Drinks check'])}</td><td style="white-space:normal;min-width:220px">${esc(r["This month's goal"])}</td></tr>`).join('');
+  return `<div class="wrap stack" style="padding-top:24px;gap:16px">
+    <div><h1 style="font-size:30px">${D.age} months</h1><p class="muted" style="margin:0">${esc(m['From'])} to ${esc(m['To'])}</p></div>
+    <div class="grid2">
+      ${tile(D.triedCount + ' of ' + D.guideCount, 'foods tried so far')}
+      ${tile(m['New foods'] || 0, 'new this month')}
+      ${tile((m['Iron days'] || 0) + ' of ' + (m['Days so far'] || 0), 'days with an iron food')}
+      ${tile((m['Allergens started to date'] || 0) + ' of 9', 'allergens started')}
+    </div>
+    <section class="card stack"><h2 style="font-size:20px">Day by day</h2>${strip}
+      <p class="tiny muted" style="margin:0">${ICON.sq('#C9532F')} iron · ${ICON.dot('#2F8A5C')} new food · ${ICON.shield('#8A2F7C')} allergen · bars are water in oz</p></section>
+    <section class="card stack"><h2 style="font-size:20px">Drinks this month</h2>
+      <div class="between"><span>Water a day</span><b>${esc(m['Water oz a day'] || '-')} oz</b></div>
+      <div class="between"><span>Breastfeeds a day</span><b>${esc(m['Breastfeeds a day'] || '-')}</b></div>
+      <div class="between"><span>Formula a day</span><b>${esc(m['Formula oz a day'] || '-')}</b></div>
+      <div class="between"><span>Check</span><b>${esc(m['Drinks check'] || '-')}</b></div></section>
+    <section class="card stack"><h2 style="font-size:20px">Food groups</h2>${groups}</section>
+    <section class="card stack"><h2 style="font-size:20px">Month by month</h2>
+      <div style="overflow-x:auto"><table><thead><tr><th>Age</th><th>New foods</th><th>Iron days</th><th>Allergens</th><th>Water a day</th><th>Drinks</th><th>Goal</th></tr></thead><tbody>${months}</tbody></table></div></section>
+    <button type="button" class="btn-sun" id="report" ${S.busy ? 'disabled' : ''}>Email me the doctor report</button>
+  </div>`;
+}
+
+function vAllergens(D) {
+  const col = { 'Due': 'var(--plum)', 'On track': 'var(--greenInk)', 'Not yet': 'var(--muted)' };
+  const cards = D.allergens.map(a => {
+    const dots = Array.from({ length: Math.max(1, a.target) }, (_, i) => `<svg aria-hidden="true" width="20" height="20"><circle cx="10" cy="10" r="${i < a.last7 ? 9 : 8}" fill="${i < a.last7 ? '#2F8A5C' : 'none'}" stroke="${i < a.last7 ? '#2F8A5C' : '#B7BEC4'}" stroke-width="2"/></svg>`).join('');
+    return `<article class="card stack" style="${a.status === 'Not yet' ? 'background:#F6F1E6' : ''}">
+      <div class="between"><div><h2 style="font-size:22px">${esc(a.name)}</h2><p class="small muted" style="margin:0">${esc(a.week)}${a.first ? ', first tried ' + esc(a.first) : ''}</p></div>
+      <b style="color:${col[a.status] || 'var(--muted)'}">${esc(a.status)}</b></div>
+      <p class="small" style="margin:0"><b>Start with:</b> ${esc(a.start)}</p>
+      <div class="row" role="img" aria-label="${esc(a.name)}: ${a.last7} of ${a.target} in the last 7 days">${dots}<span class="small muted">${a.last7} of ${a.target} in the last 7 days</span></div>
+      <p class="small muted" style="margin:0">Keep it in: ${esc(a.keep)}</p></article>`;
+  }).join('');
+  return `<div class="wrap stack" style="padding-top:24px;gap:16px">
+    <h1 style="font-size:30px">Allergen plan</h1>
+    <div class="card small"><b>How to start one:</b> morning, at home, when she is well. A ¼ tsp taste, wait 10 to 15 minutes, then the rest. Watch her for 30 minutes.</div>
+    ${cards}
+    <div class="alert911"><h2 style="font-size:20px;margin-bottom:6px">Call 911 first if</h2>Trouble breathing, wheezing, repeated cough, swollen lips, tongue or face, repeated vomiting, hives plus any other symptom, or she turns pale or floppy. Use epinephrine first if prescribed. Lay her flat on her side.</div>
+    <div class="card small stack"><b>Mild reaction</b><span>A few hives around the mouth, a local rash or one vomit: stop the food, take a photo, watch her for 2 hours, and call the pediatrician the same day before giving it again.</span></div>
+  </div>`;
+}
+
+/* ------------------------------------------------------------ render and events */
+
+function render() {
+  document.getElementById('nav').innerHTML = NAV.map(([id, label, path]) =>
+    `<button type="button" data-go="${id}" ${S.view === id ? 'aria-current="page"' : ''}><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>${label}</button>`).join('');
+  const D = S.D;
+  if (!D) return;
+  const v = { today: vToday, food: vFood, drinks: vDrinks, progress: vProgress, allergens: vAllergens }[S.view];
+  const focusId = document.activeElement && document.activeElement.id;
+  document.getElementById('app').innerHTML = v(D);
+  if (focusId === 'q') { const q = document.getElementById('q'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.go) return go(b.dataset.go);
+  if (b.dataset.food) { S.picked[b.dataset.food] = !S.picked[b.dataset.food]; return render(); }
+  if (b.dataset.set) { S[b.dataset.set] = b.dataset.val; return render(); }
+  if (b.dataset.step) { S.servings = Math.max(0.5, Math.min(10, S.servings + Number(b.dataset.step))); return render(); }
+  if (b.id === 'saveFood') {
+    const items = Object.keys(S.picked).filter(n => S.picked[n]).map(food => ({ food, form: S.form, servings: S.servings, liked: S.like, reaction: S.reaction, notes: S.notes }));
+    return run(() => call('logFoods', { items }).then(r => {
+      S.D = r.dashboard; S.picked = {}; S.q = ''; S.notes = ''; S.reaction = 'None'; S.servings = 1;
+      toast(items.length === 1 ? items[0].food + ' saved' : items.length + ' foods saved', r.ids); S.view = 'today';
+    }));
+  }
+  if (b.dataset.drink) {
+    const drink = b.dataset.drink;
+    const oz = { 'Water': 1, 'Formula': S.formulaOz, 'Whole milk': 4, 'Low-fat or skim milk': 4, 'Juice': 2 }[drink] || '';
+    return run(() => call('logDrink', { drink, oz }).then(r => { S.D = r.dashboard; toast(drink === 'Breast milk' ? 'Breastfeed logged' : drink + ', ' + oz + ' oz logged', r.ids); }));
+  }
+  if (b.id === 'report') return run(() => call('emailReportNow').then(() => toast('Report emailed to you')));
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'q') { S.q = e.target.value; render(); }
+  if (e.target.id === 'notes') S.notes = e.target.value;
+});
+document.addEventListener('change', e => {
+  if (e.target.id === 'rx') { S.reaction = e.target.value; render(); }
+  if (e.target.id === 'foz') { S.formulaOz = Number(e.target.value); render(); }
+});
+
+render();
+call('getDashboard').then(D => { S.D = D; render(); })
+  .catch(err => { document.getElementById('app').innerHTML = `<div class="wrap" style="padding-top:40px"><h1>Couldn't open the log</h1><p>${esc(err.message || err)}</p><p class="muted">Make sure this Google account can edit the Sheet.</p></div>`; });
+</script>
+</body>
+</html>
