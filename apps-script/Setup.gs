@@ -6,6 +6,8 @@
 function setupForSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   PropertiesService.getScriptProperties().setProperty('SS_ID', ss.getId());
+  // One time zone for the Sheet and the script, so "today" means the same day in both
+  ss.setSpreadsheetTimeZone(Session.getScriptTimeZone());
   const N = CONFIG.LOG_ROWS + 1;
 
   // 1. Food Log: Excel's spill formulas become ARRAYFORMULA in Sheets

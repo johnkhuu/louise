@@ -19,7 +19,8 @@ No server, no database, no subscription.
 2. **Add the code.** In the Sheet: Extensions > Apps Script. Create these files and paste each one in:
    `Code.gs`, `Setup.gs`, `Backup.gs`, `Report.gs`, `Daily.gs`, and an HTML file named `Index`.
    In Project Settings, tick "Show appsscript.json manifest file in editor", then paste `appsscript.json`
-   over the one there. Change `timeZone` if you're not in Chicago. Save.
+   over the one there. Change `timeZone` if you're not in Chicago (setup copies it to the Sheet, so
+   both agree on what "today" is). Save.
 3. **Run setup.** Reload the Sheet. A **Louise** menu appears: Louise > Set up this Sheet.
    Google will ask you to authorize. Because it's your own script and not a published app, you'll see
    "Google hasn't verified this app": click Advanced, then Go to (project name). This is expected.
